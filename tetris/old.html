@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>テトリス風</title>
+  <style>
+    body { text-align: center; font-family: sans-serif; }
+    #game { display: inline-block; background: #eee; border: 2px solid #333; }
+    .row { display: flex; }
+    .cell { width: 20px; height: 20px; border: 1px solid #ccc; background: white; }
+    .block { background: blue; }
+    .fixed { background: #444; }
+button {
+  font-size: 40px; /* 操作しやすく */
+  margin: 5px;
+  padding: 10px 20px;
+}
+
+.block {
+  box-shadow: inset -2px -2px 4px rgba(0,0,0,0.5),
+              inset 2px 2px 4px rgba(255,255,255,0.3);
+}
+.I { background: #00f0f0; }
+.O { background: #f0f000; }
+.T { background: #a000f0; }
+.S { background: #00f000; }
+.Z { background: #f00000; }
+.J { background: #0000f0; }
+.L { background: #f0a000; }
+  </style>
+</head>
+<body>
+  <h1>tetris</h1>
+  <div id="game"></div>
+  <p>
+<p>スコア: <span id="score">0</span></p>
+    <button onclick="moveLeft()">←</button>
+    <button onclick="rotate()">⟳</button>
+    <button onclick="moveRight()">→</button>
+    <button onclick="drop()">↓</button>
+  </p>
+
+  <script>
+    const rows = 20, cols = 10;
+    const game = document.getElementById('game');
+    let grid = [];
+
+    const tetrominoes = {
+      'I': [
+        [[0,1],[1,1],[2,1],[3,1]],
+        [[2,0],[2,1],[2,2],[2,3]],
+        [[0,2],[1,2],[2,2],[3,2]],
+        [[1,0],[1,1],[1,2],[1,3]]
+      ],
+      'O': [
+        [[0,0],[1,0],[0,1],[1,1]],
+        [[0,0],[1,0],[0,1],[1,1]],
+        [[0,0],[1,0],[0,1],[1,1]],
+        [[0,0],[1,0],[0,1],[1,1]]
+      ],
+      'T': [
+        [[1,0],[0,1],[1,1],[2,1]],
+        [[1,0],[1,1],[1,2],[0,1]],
+        [[0,1],[1,1],[2,1],[1,2]],
+        [[1,0],[1,1],[1,2],[2,1]]
+      ],
+      'S': [
+        [[1,0],[2,0],[0,1],[1,1]],
+        [[1,0],[1,1],[2,1],[2,2]],
+        [[1,1],[2,1],[0,2],[1,2]],
+        [[0,0],[0,1],[1,1],[1,2]]
+      ],
+      'Z': [
+        [[0,0],[1,0],[1,1],[2,1]],
+        [[2,0],[1,1],[2,1],[1,2]],
+        [[0,1],[1,1],[1,2],[2,2]],
+        [[1,0],[0,1],[1,1],[0,2]]
+      ],
+      'J': [
+        [[0,0],[0,1],[1,1],[2,1]],
+        [[1,0],[1,1],[1,2],[0,2]],
+        [[0,1],[1,1],[2,1],[2,2]],
+        [[1,0],[0,0],[1,1],[1,2]]
+      ],
+      'L': [
+        [[2,0],[0,1],[1,1],[2,1]],
+        [[1,0],[1,1],[1,2],[2,2]],
+        [[0,1],[1,1],[2,1],[0,2]],
+        [[0,0],[1,0],[1,1],[1,2]]
+      ]
+    };
+
+    function createGrid() {
+      game.innerHTML = '';
+      grid = [];
+      for (let r = 0; r < rows; r++) {
+        const row = [];
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'row';
+        for (let c = 0; c < cols; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          rowDiv.appendChild(cell);
+          row.push(cell);
+        }
+        game.appendChild(rowDiv);
+        grid.push(row);
+      }
+    }
+
+    function randomBlock() {
+      const keys = Object.keys(tetrominoes);
+      const name = keys[Math.floor(Math.random() * keys.length)];
+      return { x: 3, y: 0, rotation: 0, shape: name };
+    }
+
+    let block = randomBlock();
+
+    function draw() {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (!grid[r][c].classList.contains('fixed')) {
+            grid[r][c].className = 'cell';
+          }
+        }
+      }
+      const shape = tetrominoes[block.shape][block.rotation];
+      for (let [dx, dy] of shape) {
+        const x = block.x + dx;
+        const y = block.y + dy;
+        if (y >= 0 && y < rows && x >= 0 && x < cols) {
+          grid[y][x].classList.add('block');
+        }
+      }
+    }
+
+    function fixBlock() {
+      const shape = tetrominoes[block.shape][block.rotation];
+      for (let [dx, dy] of shape) {
+        const x = block.x + dx;
+        const y = block.y + dy;
+        if (y >= 0 && y < rows && x >= 0 && x < cols) {
+          grid[y][x].className = 'cell fixed';
+        }
+      }
+    }
+
+    function clearLines() {
+      for (let r = rows - 1; r >= 0; r--) {
+        if (grid[r].every(cell => cell.classList.contains('fixed'))) {
+          for (let i = r; i > 0; i--) {
+            for (let c = 0; c < cols; c++) {
+              grid[i][c].className = grid[i-1][c].className;
+            }
+          }
+          for (let c = 0; c < cols; c++) {
+            grid[0][c].className = 'cell';
+          }
+          r++;
+        }
+      }
+    }
+
+    function moveDown() {
+      block.y++;
+      if (isCollision()) {
+        block.y--;
+        fixBlock();
+        clearLines();
+        block = randomBlock();
+        if (isCollision()) {
+          alert("ゲームオーバー");
+          createGrid();
+        }
+      }
+      draw();
+    }
+
+    function moveLeft() {
+      block.x--;
+      if (isCollision()) block.x++;
+      draw();
+    }
+
+    function moveRight() {
+      block.x++;
+      if (isCollision()) block.x--;
+      draw();
+    }
+
+    function rotate() {
+      const prev = block.rotation;
+      block.rotation = (block.rotation + 1) % 4;
+      if (isCollision()) block.rotation = prev;
+      draw();
+    }
+
+    function drop() {
+      do { block.y++; } while (!isCollision());
+      block.y--;
+      draw();
+    }
+
+    function isCollision() {
+      const shape = tetrominoes[block.shape][block.rotation];
+      for (let [dx, dy] of shape) {
+        const x = block.x + dx;
+        const y = block.y + dy;
+        if (x < 0 || x >= cols || y >= rows) return true;
+        if (y >= 0 && grid[y][x].classList.contains('fixed')) return true;
+      }
+      return false;
+    }
+
+    createGrid();
+    draw();
+    setInterval(moveDown, 600);
+  </script>
+</body>
+</html>
