@@ -8,32 +8,34 @@
     #game { display: inline-block; background: #eee; border: 2px solid #333; }
     .row { display: flex; }
     .cell { width: 20px; height: 20px; border: 1px solid #ccc; background: white; }
-    .block { background: blue; }
-    .fixed { background: #444; }
-button {
-  font-size: 40px; /* 操作しやすく */
-  margin: 5px;
-  padding: 10px 20px;
-}
+    .block { 
+      box-shadow: inset -2px -2px 4px rgba(0,0,0,0.5),
+                  inset 2px 2px 4px rgba(255,255,255,0.3);
+    }
+    .fixed {
+      box-shadow: inset -1px -1px 2px rgba(0,0,0,0.5),
+                  inset 1px 1px 2px rgba(255,255,255,0.3);
+    }
+    .I { background: #00f0f0; }
+    .O { background: #f0f000; }
+    .T { background: #a000f0; }
+    .S { background: #00f000; }
+    .Z { background: #f00000; }
+    .J { background: #0000f0; }
+    .L { background: #f0a000; }
 
-.block {
-  box-shadow: inset -2px -2px 4px rgba(0,0,0,0.5),
-              inset 2px 2px 4px rgba(255,255,255,0.3);
-}
-.I { background: #00f0f0; }
-.O { background: #f0f000; }
-.T { background: #a000f0; }
-.S { background: #00f000; }
-.Z { background: #f00000; }
-.J { background: #0000f0; }
-.L { background: #f0a000; }
+    button {
+      font-size: 40px;
+      margin: 5px;
+      padding: 10px 20px;
+    }
   </style>
 </head>
 <body>
   <h1>tetris</h1>
   <div id="game"></div>
+  <p>スコア: <span id="score">0</span></p>
   <p>
-<p>スコア: <span id="score">0</span></p>
     <button onclick="moveLeft()">←</button>
     <button onclick="rotate()">⟳</button>
     <button onclick="moveRight()">→</button>
@@ -44,6 +46,7 @@ button {
     const rows = 20, cols = 10;
     const game = document.getElementById('game');
     let grid = [];
+    let score = 0;
 
     const tetrominoes = {
       'I': [
@@ -129,7 +132,7 @@ button {
         const x = block.x + dx;
         const y = block.y + dy;
         if (y >= 0 && y < rows && x >= 0 && x < cols) {
-          grid[y][x].classList.add('block');
+          grid[y][x].className = 'cell block ' + block.shape;
         }
       }
     }
@@ -140,24 +143,30 @@ button {
         const x = block.x + dx;
         const y = block.y + dy;
         if (y >= 0 && y < rows && x >= 0 && x < cols) {
-          grid[y][x].className = 'cell fixed';
+          grid[y][x].className = 'cell fixed ' + block.shape;
         }
       }
     }
 
     function clearLines() {
+      let linesCleared = 0;
       for (let r = rows - 1; r >= 0; r--) {
         if (grid[r].every(cell => cell.classList.contains('fixed'))) {
           for (let i = r; i > 0; i--) {
             for (let c = 0; c < cols; c++) {
-              grid[i][c].className = grid[i-1][c].className;
+              grid[i][c].className = grid[i - 1][c].className;
             }
           }
           for (let c = 0; c < cols; c++) {
             grid[0][c].className = 'cell';
           }
+          linesCleared++;
           r++;
         }
+      }
+      if (linesCleared > 0) {
+        score += linesCleared * 100;
+        document.getElementById('score').textContent = score;
       }
     }
 
@@ -171,6 +180,8 @@ button {
         if (isCollision()) {
           alert("ゲームオーバー");
           createGrid();
+          score = 0;
+          document.getElementById('score').textContent = score;
         }
       }
       draw();
