@@ -90,6 +90,7 @@
     let current;
     let score = 0;
     let timer;
+    let gameOver = false;
 
     function drawGrid() {
       ctx.strokeStyle = "#ffffff44";
@@ -233,12 +234,15 @@
 
     function endGame() {
       clearInterval(timer);
+      gameOver = true;
+      current = null;
       gameOverDiv.style.display = "block";
     }
 
     function resetGame() {
       field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
       score = 0;
+      gameOver = false;
       gameOverDiv.style.display = "none";
       spawn();
       draw();
@@ -251,7 +255,7 @@
 
     // キーボード操作
     window.addEventListener("keydown", (e) => {
-      if (!current) return;
+      if (gameOver || !current) return;
       switch (e.key) {
         case "ArrowLeft":
           move(-1);
