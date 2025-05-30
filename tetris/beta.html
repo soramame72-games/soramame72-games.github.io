@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>テトリスPC edition</title>
+  <style>
+    html, body {
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    canvas {
+      background: #000;
+      display: block;
+      margin: 20px auto;
+      image-rendering: pixelated;
+    }
+
+    #score {
+      text-align: center;
+      font-size: 20px;
+    }
+
+    #gameOver {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.85);
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+      font-size: 24px;
+      text-align: center;
+      z-index: 10;
+    }
+
+    #gameOver button {
+      margin-top: 10px;
+      font-size: 18px;
+      padding: 10px 20px;
+      background: linear-gradient(to bottom, #eee, #ccc);
+      box-shadow: inset 2px 2px 5px #fff, inset -2px -2px 5px #999, 2px 2px 5px rgba(0,0,0,0.2);
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="200" height="400"></canvas>
+  <div id="score">Score: 0</div>
+  <div id="gameOver">
+    Game Over<br>
+    <button id="restartBtn">Restart</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreDisplay = document.getElementById("score");
+    const gameOverDiv = document.getElementById("gameOver");
+
+    const COLS = 10;
+    const ROWS = 20;
+    const BLOCK_SIZE = 20;
+    const COLORS = {
+      I: "#0ff", J: "#00f", L: "#f80",
+      O: "#ff0", S: "#0f0", T: "#a0f", Z: "#f00"
+    };
+
+    const SHAPES = {
+      I: [[1,1,1,1]],
+      J: [[1,0,0],[1,1,1]],
+      L: [[0,0,1],[1,1,1]],
+      O: [[1,1],[1,1]],
+      S: [[0,1,1],[1,1,0]],
+      T: [[0,1,0],[1,1,1]],
+      Z: [[1,1,0],[0,1,1]]
+    };
+
+    let field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
+    let current;
+    let score = 0;
+    let timer;
+    let gameOver = false;
+
+    function drawGrid() {
+      ctx.strokeStyle = "#ffffff44";
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= COLS; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * BLOCK_SIZE, 0);
+        ctx.lineTo(x * BLOCK_SIZE, ROWS * BLOCK_SIZE);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= ROWS; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * BLOCK_SIZE);
+        ctx.lineTo(COLS * BLOCK_SIZE, y * BLOCK_SIZE);
+        ctx.stroke();
+      }
+    }
+
+    function drawBlock(x, y, color) {
+      const grad = ctx.createLinearGradient(
+        x * BLOCK_SIZE, y * BLOCK_SIZE,
+        (x + 1) * BLOCK_SIZE, (y + 1) * BLOCK_SIZE
+      );
+      grad.addColorStop(0, "#fff");
+      grad.addColorStop(0.3, color);
+      grad.addColorStop(1, "#000");
+      ctx.fillStyle = grad;
+      ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+      ctx.strokeStyle = "#fff";
+      ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (field[y][x]) drawBlock(x, y, field[y][x]);
+        }
+      }
+      if (current) {
+        for (let y = 0; y < current.shape.length; y++) {
+          for (let x = 0; x < current.shape[y].length; x++) {
+            if (current.shape[y][x]) {
+              drawBlock(current.x + x, current.y + y, COLORS[current.type]);
+            }
+          }
+        }
+      }
+      scoreDisplay.textContent = "Score: " + score;
+    }
+
+    function spawn() {
+      const types = Object.keys(SHAPES);
+      const type = types[Math.floor(Math.random() * types.length)];
+      current = {
+        type,
+        shape: SHAPES[type],
+        x: 3,
+        y: 0
+      };
+      if (checkCollision(current.x, current.y, current.shape)) {
+        endGame();
+      }
+    }
+
+    function rotate() {
+      const rotated = current.shape[0].map((_, i) =>
+        current.shape.map(row => row[i]).reverse()
+      );
+      if (!checkCollision(current.x, current.y, rotated)) {
+        current.shape = rotated;
+        draw();
+      }
+    }
+
+    function move(dir) {
+      if (!checkCollision(current.x + dir, current.y, current.shape)) {
+        current.x += dir;
+        draw();
+      }
+    }
+
+    function drop() {
+      if (!checkCollision(current.x, current.y + 1, current.shape)) {
+        current.y++;
+      } else {
+        merge();
+        clearLines();
+        spawn();
+      }
+      draw();
+    }
+
+    function hardDrop() {
+      while (!checkCollision(current.x, current.y + 1, current.shape)) {
+        current.y++;
+        score++;
+      }
+      merge();
+      clearLines();
+      spawn();
+      draw();
+    }
+
+    function merge() {
+      for (let y = 0; y < current.shape.length; y++) {
+        for (let x = 0; x < current.shape[y].length; x++) {
+          if (current.shape[y][x]) {
+            field[current.y + y][current.x + x] = COLORS[current.type];
+          }
+        }
+      }
+    }
+
+    function clearLines() {
+      for (let y = ROWS - 1; y >= 0; y--) {
+        if (field[y].every(cell => cell)) {
+          field.splice(y, 1);
+          field.unshift(Array(COLS).fill(""));
+          score += 100;
+          y++;
+        }
+      }
+    }
+
+    function checkCollision(x, y, shape) {
+      for (let row = 0; row < shape.length; row++) {
+        for (let col = 0; col < shape[row].length; col++) {
+          if (shape[row][col]) {
+            const nx = x + col;
+            const ny = y + row;
+            if (nx < 0 || nx >= COLS || ny >= ROWS || (ny >= 0 && field[ny][nx])) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    function endGame() {
+      clearInterval(timer);
+      gameOver = true;
+      current = null;
+      gameOverDiv.style.display = "block";
+    }
+
+    function resetGame() {
+      field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
+      score = 0;
+      gameOver = false;
+      gameOverDiv.style.display = "none";
+      spawn();
+      draw();
+      clearInterval(timer);
+      timer = setInterval(drop, 600);
+    }
+
+    document.getElementById("restartBtn").addEventListener("click", resetGame);
+    window.addEventListener("load", resetGame);
+
+    // キーボード操作
+    window.addEventListener("keydown", (e) => {
+      if (gameOver || !current) return;
+      switch (e.key) {
+        case "ArrowLeft":
+          move(-1);
+          break;
+        case "ArrowRight":
+          move(1);
+          break;
+        case "ArrowDown":
+          drop();
+          break;
+        case "ArrowUp":
+          rotate();
+          break;
+        case " ":
+          hardDrop();
+          break;
+      }
+    });
+  </script>
+</body>
+</html>
