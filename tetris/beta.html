@@ -35,6 +35,28 @@
       margin-top: 5px;
     }
 
+    #hold {
+      position: absolute;
+      left: 20px;
+      top: 60px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+      border: 2px solid #666;
+    }
+
+    #hold h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      text-align: center;
+    }
+
+    #holdCanvas {
+      display: block;
+      background: #111;
+      border: 1px solid #333;
+    }
+
     #gameOver {
       position: absolute;
       top: 40%;
@@ -76,6 +98,12 @@
   <canvas id="game" width="200" height="400"></canvas>
   <div id="score">Score: 0</div>
   <div id="highscore">High Score: 0</div>
+  
+  <div id="hold">
+    <h3>HOLD</h3>
+    <canvas id="holdCanvas" width="80" height="80"></canvas>
+  </div>
+  
   <div id="gameOver">
     Game Over<br>
     <div id="gameOverScore"></div>
@@ -85,6 +113,8 @@
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
+    const holdCanvas = document.getElementById("holdCanvas");
+    const holdCtx = holdCanvas.getContext("2d");
     const scoreDisplay = document.getElementById("score");
     const highscoreDisplay = document.getElementById("highscore");
     const gameOverDiv = document.getElementById("gameOver");
@@ -110,6 +140,8 @@
 
     let field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
     let current;
+    let heldPiece = null;
+    let canHold = true;
     let score = 0;
     let highscore = 0;
     let timer;
@@ -132,7 +164,66 @@
       highscoreDisplay.textContent = "High Score: " + highscore;
     }
 
-    // スコア更新時にハイスコアもチェック
+    // ホールドエリアの描画
+    function drawHoldPiece() {
+      holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+      if (heldPiece) {
+        const shape = SHAPES[heldPiece];
+        const color = COLORS[heldPiece];
+        const offsetX = (holdCanvas.width - shape[0].length * 20) / 2;
+        const offsetY = (holdCanvas.height - shape.length * 20) / 2;
+        
+        for (let y = 0; y < shape.length; y++) {
+          for (let x = 0; x < shape[y].length; x++) {
+            if (shape[y][x]) {
+              drawHoldBlock(offsetX / 20 + x, offsetY / 20 + y, color);
+            }
+          }
+        }
+      }
+    }
+
+    function drawHoldBlock(x, y, color) {
+      const size = 20;
+      const grad = holdCtx.createLinearGradient(
+        x * size, y * size,
+        (x + 1) * size, (y + 1) * size
+      );
+      grad.addColorStop(0, "#fff");
+      grad.addColorStop(0.3, color);
+      grad.addColorStop(1, "#000");
+      holdCtx.fillStyle = grad;
+      holdCtx.fillRect(x * size, y * size, size, size);
+      holdCtx.strokeStyle = "#fff";
+      holdCtx.strokeRect(x * size, y * size, size, size);
+    }
+
+    // ホールド機能
+    function holdPiece() {
+      if (!canHold || !current) return;
+      
+      if (heldPiece === null) {
+        heldPiece = current.type;
+        spawn();
+      } else {
+        const temp = heldPiece;
+        heldPiece = current.type;
+        current = {
+          type: temp,
+          shape: SHAPES[temp],
+          x: 3,
+          y: 0
+        };
+        if (checkCollision(current.x, current.y, current.shape)) {
+          endGame();
+          return;
+        }
+      }
+      
+      canHold = false;
+      drawHoldPiece();
+      draw();
+    }
     function updateScore(points) {
       score += points;
       if (score > highscore) {
@@ -205,6 +296,7 @@
         x: 3,
         y: 0
       };
+      canHold = true; // 新しいピースでホールド可能に
       if (checkCollision(current.x, current.y, current.shape)) {
         endGame();
       }
@@ -304,10 +396,13 @@
     function resetGame() {
       field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
       score = 0;
+      heldPiece = null;
+      canHold = true;
       gameOver = false;
       gameOverDiv.style.display = "none";
       spawn();
       draw();
+      drawHoldPiece();
       clearInterval(timer);
       timer = setInterval(drop, 600);
     }
@@ -337,6 +432,10 @@
           break;
         case " ":
           hardDrop();
+          break;
+        case "c":
+        case "C":
+          holdPiece();
           break;
       }
     });
