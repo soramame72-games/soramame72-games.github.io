@@ -464,6 +464,9 @@
       gameOver = true;
       current = null;
       
+      // ハイスコアを確実に保存
+      saveHighScore();
+      
       // ゲームオーバー時のスコア表示
       if (score === highscore && score > 0) {
         gameOverScore.innerHTML = `Final Score: ${score}<br><span style="color: #ffd700;">🎉 NEW HIGH SCORE! 🎉</span>`;
@@ -471,7 +474,6 @@
         gameOverScore.innerHTML = `Final Score: ${score}`;
       }
       
-      saveHighScore();
       gameOverDiv.style.display = "block";
     }
 
