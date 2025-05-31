@@ -57,6 +57,28 @@
       border: 1px solid #333;
     }
 
+    #next {
+      position: absolute;
+      right: 20px;
+      top: 60px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+      border: 2px solid #666;
+    }
+
+    #next h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      text-align: center;
+    }
+
+    #nextCanvas {
+      display: block;
+      background: #111;
+      border: 1px solid #333;
+    }
+
     #gameOver {
       position: absolute;
       top: 40%;
@@ -104,6 +126,11 @@
     <canvas id="holdCanvas" width="80" height="80"></canvas>
   </div>
   
+  <div id="next">
+    <h3>NEXT</h3>
+    <canvas id="nextCanvas" width="80" height="80"></canvas>
+  </div>
+  
   <div id="gameOver">
     Game Over<br>
     <div id="gameOverScore"></div>
@@ -115,6 +142,8 @@
     const ctx = canvas.getContext("2d");
     const holdCanvas = document.getElementById("holdCanvas");
     const holdCtx = holdCanvas.getContext("2d");
+    const nextCanvas = document.getElementById("nextCanvas");
+    const nextCtx = nextCanvas.getContext("2d");
     const scoreDisplay = document.getElementById("score");
     const highscoreDisplay = document.getElementById("highscore");
     const gameOverDiv = document.getElementById("gameOver");
@@ -140,6 +169,7 @@
 
     let field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
     let current;
+    let nextPiece;
     let heldPiece = null;
     let canHold = true;
     let score = 0;
@@ -154,7 +184,45 @@
       updateHighScoreDisplay();
     }
 
-    // ハイスコアを保存する
+    // ランダムなピースタイプを生成
+    function getRandomPieceType() {
+      const types = Object.keys(SHAPES);
+      return types[Math.floor(Math.random() * types.length)];
+    }
+
+    // ネクストエリアの描画
+    function drawNextPiece() {
+      nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+      if (nextPiece) {
+        const shape = SHAPES[nextPiece];
+        const color = COLORS[nextPiece];
+        const offsetX = (nextCanvas.width - shape[0].length * 20) / 2;
+        const offsetY = (nextCanvas.height - shape.length * 20) / 2;
+        
+        for (let y = 0; y < shape.length; y++) {
+          for (let x = 0; x < shape[y].length; x++) {
+            if (shape[y][x]) {
+              drawNextBlock(offsetX / 20 + x, offsetY / 20 + y, color);
+            }
+          }
+        }
+      }
+    }
+
+    function drawNextBlock(x, y, color) {
+      const size = 20;
+      const grad = nextCtx.createLinearGradient(
+        x * size, y * size,
+        (x + 1) * size, (y + 1) * size
+      );
+      grad.addColorStop(0, "#fff");
+      grad.addColorStop(0.3, color);
+      grad.addColorStop(1, "#000");
+      nextCtx.fillStyle = grad;
+      nextCtx.fillRect(x * size, y * size, size, size);
+      nextCtx.strokeStyle = "#fff";
+      nextCtx.strokeRect(x * size, y * size, size, size);
+    }
     function saveHighScore() {
       window.highScoreData = highscore;
     }
@@ -288,14 +356,28 @@
     }
 
     function spawn() {
-      const types = Object.keys(SHAPES);
-      const type = types[Math.floor(Math.random() * types.length)];
-      current = {
-        type,
-        shape: SHAPES[type],
-        x: 3,
-        y: 0
-      };
+      if (nextPiece) {
+        current = {
+          type: nextPiece,
+          shape: SHAPES[nextPiece],
+          x: 3,
+          y: 0
+        };
+      } else {
+        // 初回のみ
+        const type = getRandomPieceType();
+        current = {
+          type,
+          shape: SHAPES[type],
+          x: 3,
+          y: 0
+        };
+      }
+      
+      // 次のピースを生成
+      nextPiece = getRandomPieceType();
+      drawNextPiece();
+      
       canHold = true; // 新しいピースでホールド可能に
       if (checkCollision(current.x, current.y, current.shape)) {
         endGame();
@@ -397,12 +479,14 @@
       field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
       score = 0;
       heldPiece = null;
+      nextPiece = null;
       canHold = true;
       gameOver = false;
       gameOverDiv.style.display = "none";
       spawn();
       draw();
       drawHoldPiece();
+      drawNextPiece();
       clearInterval(timer);
       timer = setInterval(drop, 600);
     }
