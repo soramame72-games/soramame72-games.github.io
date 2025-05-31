@@ -28,6 +28,13 @@
       font-size: 20px;
     }
 
+    #highscore {
+      text-align: center;
+      font-size: 18px;
+      color: #ffd700;
+      margin-top: 5px;
+    }
+
     #gameOver {
       position: absolute;
       top: 40%;
@@ -52,13 +59,26 @@
       border: none;
       cursor: pointer;
     }
+
+    .new-record {
+      color: #ffd700;
+      font-weight: bold;
+      animation: glow 1s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+      from { text-shadow: 0 0 5px #ffd700; }
+      to { text-shadow: 0 0 20px #ffd700, 0 0 30px #ffd700; }
+    }
   </style>
 </head>
 <body>
   <canvas id="game" width="200" height="400"></canvas>
   <div id="score">Score: 0</div>
+  <div id="highscore">High Score: 0</div>
   <div id="gameOver">
     Game Over<br>
+    <div id="gameOverScore"></div>
     <button id="restartBtn">Restart</button>
   </div>
 
@@ -66,7 +86,9 @@
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const scoreDisplay = document.getElementById("score");
+    const highscoreDisplay = document.getElementById("highscore");
     const gameOverDiv = document.getElementById("gameOver");
+    const gameOverScore = document.getElementById("gameOverScore");
 
     const COLS = 10;
     const ROWS = 20;
@@ -89,11 +111,42 @@
     let field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
     let current;
     let score = 0;
+    let highscore = 0;
     let timer;
     let gameOver = false;
 
+    // ハイスコアを読み込む
+    function loadHighScore() {
+      const saved = window.highScoreData || 0;
+      highscore = saved;
+      updateHighScoreDisplay();
+    }
+
+    // ハイスコアを保存する
+    function saveHighScore() {
+      window.highScoreData = highscore;
+    }
+
+    // ハイスコア表示を更新
+    function updateHighScoreDisplay() {
+      highscoreDisplay.textContent = "High Score: " + highscore;
+    }
+
+    // スコア更新時にハイスコアもチェック
+    function updateScore(points) {
+      score += points;
+      if (score > highscore) {
+        highscore = score;
+        updateHighScoreDisplay();
+        highscoreDisplay.classList.add('new-record');
+        setTimeout(() => {
+          highscoreDisplay.classList.remove('new-record');
+        }, 3000);
+      }
+    }
+
     function drawGrid() {
-      ctx.strokeStyle = "#ffffff44";
+      ctx.strokeStyle = "#ffffff66";
       ctx.lineWidth = 1;
       for (let x = 0; x <= COLS; x++) {
         ctx.beginPath();
@@ -188,7 +241,7 @@
     function hardDrop() {
       while (!checkCollision(current.x, current.y + 1, current.shape)) {
         current.y++;
-        score++;
+        updateScore(1);
       }
       merge();
       clearLines();
@@ -211,7 +264,7 @@
         if (field[y].every(cell => cell)) {
           field.splice(y, 1);
           field.unshift(Array(COLS).fill(""));
-          score += 100;
+          updateScore(100);
           y++;
         }
       }
@@ -236,6 +289,15 @@
       clearInterval(timer);
       gameOver = true;
       current = null;
+      
+      // ゲームオーバー時のスコア表示
+      if (score === highscore && score > 0) {
+        gameOverScore.innerHTML = `Final Score: ${score}<br><span style="color: #ffd700;">🎉 NEW HIGH SCORE! 🎉</span>`;
+      } else {
+        gameOverScore.innerHTML = `Final Score: ${score}`;
+      }
+      
+      saveHighScore();
       gameOverDiv.style.display = "block";
     }
 
@@ -251,7 +313,11 @@
     }
 
     document.getElementById("restartBtn").addEventListener("click", resetGame);
-    window.addEventListener("load", resetGame);
+    
+    window.addEventListener("load", () => {
+      loadHighScore();
+      resetGame();
+    });
 
     // キーボード操作
     window.addEventListener("keydown", (e) => {
