@@ -1,231 +1,279 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>テトリス風</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>テトリスPC edition</title>
   <style>
-    body { text-align: center; font-family: sans-serif; }
-    #game { display: inline-block; background: #eee; border: 2px solid #333; }
-    .row { display: flex; }
-    .cell { width: 20px; height: 20px; border: 1px solid #ccc; background: white; }
-    .block { 
-      box-shadow: inset -2px -2px 4px rgba(0,0,0,0.5),
-                  inset 2px 2px 4px rgba(255,255,255,0.3);
+    html, body {
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
     }
-    .fixed {
-      box-shadow: inset -1px -1px 2px rgba(0,0,0,0.5),
-                  inset 1px 1px 2px rgba(255,255,255,0.3);
-    }
-    .I { background: #00f0f0; }
-    .O { background: #f0f000; }
-    .T { background: #a000f0; }
-    .S { background: #00f000; }
-    .Z { background: #f00000; }
-    .J { background: #0000f0; }
-    .L { background: #f0a000; }
 
-    button {
-      font-size: 40px;
-      margin: 5px;
+    canvas {
+      background: #000;
+      display: block;
+      margin: 20px auto;
+      image-rendering: pixelated;
+    }
+
+    #score {
+      text-align: center;
+      font-size: 20px;
+    }
+
+    #gameOver {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.85);
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+      font-size: 24px;
+      text-align: center;
+      z-index: 10;
+    }
+
+    #gameOver button {
+      margin-top: 10px;
+      font-size: 18px;
       padding: 10px 20px;
+      background: linear-gradient(to bottom, #eee, #ccc);
+      box-shadow: inset 2px 2px 5px #fff, inset -2px -2px 5px #999, 2px 2px 5px rgba(0,0,0,0.2);
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <h1>tetris</h1>
-  <div id="game"></div>
-  <p>スコア: <span id="score">0</span></p>
-  <p>
-    <button onclick="moveLeft()">←</button>
-    <button onclick="rotate()">⟳</button>
-    <button onclick="moveRight()">→</button>
-    <button onclick="drop()">↓</button>
-  </p>
+  <canvas id="game" width="200" height="400"></canvas>
+  <div id="score">Score: 0</div>
+  <div id="gameOver">
+    Game Over<br>
+    <button id="restartBtn">Restart</button>
+  </div>
 
   <script>
-    const rows = 20, cols = 10;
-    const game = document.getElementById('game');
-    let grid = [];
-    let score = 0;
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreDisplay = document.getElementById("score");
+    const gameOverDiv = document.getElementById("gameOver");
 
-    const tetrominoes = {
-      'I': [
-        [[0,1],[1,1],[2,1],[3,1]],
-        [[2,0],[2,1],[2,2],[2,3]],
-        [[0,2],[1,2],[2,2],[3,2]],
-        [[1,0],[1,1],[1,2],[1,3]]
-      ],
-      'O': [
-        [[0,0],[1,0],[0,1],[1,1]],
-        [[0,0],[1,0],[0,1],[1,1]],
-        [[0,0],[1,0],[0,1],[1,1]],
-        [[0,0],[1,0],[0,1],[1,1]]
-      ],
-      'T': [
-        [[1,0],[0,1],[1,1],[2,1]],
-        [[1,0],[1,1],[1,2],[0,1]],
-        [[0,1],[1,1],[2,1],[1,2]],
-        [[1,0],[1,1],[1,2],[2,1]]
-      ],
-      'S': [
-        [[1,0],[2,0],[0,1],[1,1]],
-        [[1,0],[1,1],[2,1],[2,2]],
-        [[1,1],[2,1],[0,2],[1,2]],
-        [[0,0],[0,1],[1,1],[1,2]]
-      ],
-      'Z': [
-        [[0,0],[1,0],[1,1],[2,1]],
-        [[2,0],[1,1],[2,1],[1,2]],
-        [[0,1],[1,1],[1,2],[2,2]],
-        [[1,0],[0,1],[1,1],[0,2]]
-      ],
-      'J': [
-        [[0,0],[0,1],[1,1],[2,1]],
-        [[1,0],[1,1],[1,2],[0,2]],
-        [[0,1],[1,1],[2,1],[2,2]],
-        [[1,0],[0,0],[1,1],[1,2]]
-      ],
-      'L': [
-        [[2,0],[0,1],[1,1],[2,1]],
-        [[1,0],[1,1],[1,2],[2,2]],
-        [[0,1],[1,1],[2,1],[0,2]],
-        [[0,0],[1,0],[1,1],[1,2]]
-      ]
+    const COLS = 10;
+    const ROWS = 20;
+    const BLOCK_SIZE = 20;
+    const COLORS = {
+      I: "#0ff", J: "#00f", L: "#f80",
+      O: "#ff0", S: "#0f0", T: "#a0f", Z: "#f00"
     };
 
-    function createGrid() {
-      game.innerHTML = '';
-      grid = [];
-      for (let r = 0; r < rows; r++) {
-        const row = [];
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'row';
-        for (let c = 0; c < cols; c++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
-          rowDiv.appendChild(cell);
-          row.push(cell);
-        }
-        game.appendChild(rowDiv);
-        grid.push(row);
+    const SHAPES = {
+      I: [[1,1,1,1]],
+      J: [[1,0,0],[1,1,1]],
+      L: [[0,0,1],[1,1,1]],
+      O: [[1,1],[1,1]],
+      S: [[0,1,1],[1,1,0]],
+      T: [[0,1,0],[1,1,1]],
+      Z: [[1,1,0],[0,1,1]]
+    };
+
+    let field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
+    let current;
+    let score = 0;
+    let timer;
+    let gameOver = false;
+
+    function drawGrid() {
+      ctx.strokeStyle = "#ffffff66";
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= COLS; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * BLOCK_SIZE, 0);
+        ctx.lineTo(x * BLOCK_SIZE, ROWS * BLOCK_SIZE);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= ROWS; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * BLOCK_SIZE);
+        ctx.lineTo(COLS * BLOCK_SIZE, y * BLOCK_SIZE);
+        ctx.stroke();
       }
     }
 
-    function randomBlock() {
-      const keys = Object.keys(tetrominoes);
-      const name = keys[Math.floor(Math.random() * keys.length)];
-      return { x: 3, y: 0, rotation: 0, shape: name };
+    function drawBlock(x, y, color) {
+      const grad = ctx.createLinearGradient(
+        x * BLOCK_SIZE, y * BLOCK_SIZE,
+        (x + 1) * BLOCK_SIZE, (y + 1) * BLOCK_SIZE
+      );
+      grad.addColorStop(0, "#fff");
+      grad.addColorStop(0.3, color);
+      grad.addColorStop(1, "#000");
+      ctx.fillStyle = grad;
+      ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+      ctx.strokeStyle = "#fff";
+      ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
     }
 
-    let block = randomBlock();
-
     function draw() {
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          if (!grid[r][c].classList.contains('fixed')) {
-            grid[r][c].className = 'cell';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (field[y][x]) drawBlock(x, y, field[y][x]);
+        }
+      }
+      if (current) {
+        for (let y = 0; y < current.shape.length; y++) {
+          for (let x = 0; x < current.shape[y].length; x++) {
+            if (current.shape[y][x]) {
+              drawBlock(current.x + x, current.y + y, COLORS[current.type]);
+            }
           }
         }
       }
-      const shape = tetrominoes[block.shape][block.rotation];
-      for (let [dx, dy] of shape) {
-        const x = block.x + dx;
-        const y = block.y + dy;
-        if (y >= 0 && y < rows && x >= 0 && x < cols) {
-          grid[y][x].className = 'cell block ' + block.shape;
-        }
+      scoreDisplay.textContent = "Score: " + score;
+    }
+
+    function spawn() {
+      const types = Object.keys(SHAPES);
+      const type = types[Math.floor(Math.random() * types.length)];
+      current = {
+        type,
+        shape: SHAPES[type],
+        x: 3,
+        y: 0
+      };
+      if (checkCollision(current.x, current.y, current.shape)) {
+        endGame();
       }
     }
 
-    function fixBlock() {
-      const shape = tetrominoes[block.shape][block.rotation];
-      for (let [dx, dy] of shape) {
-        const x = block.x + dx;
-        const y = block.y + dy;
-        if (y >= 0 && y < rows && x >= 0 && x < cols) {
-          grid[y][x].className = 'cell fixed ' + block.shape;
+    function rotate() {
+      const rotated = current.shape[0].map((_, i) =>
+        current.shape.map(row => row[i]).reverse()
+      );
+      if (!checkCollision(current.x, current.y, rotated)) {
+        current.shape = rotated;
+        draw();
+      }
+    }
+
+    function move(dir) {
+      if (!checkCollision(current.x + dir, current.y, current.shape)) {
+        current.x += dir;
+        draw();
+      }
+    }
+
+    function drop() {
+      if (!checkCollision(current.x, current.y + 1, current.shape)) {
+        current.y++;
+      } else {
+        merge();
+        clearLines();
+        spawn();
+      }
+      draw();
+    }
+
+    function hardDrop() {
+      while (!checkCollision(current.x, current.y + 1, current.shape)) {
+        current.y++;
+        score++;
+      }
+      merge();
+      clearLines();
+      spawn();
+      draw();
+    }
+
+    function merge() {
+      for (let y = 0; y < current.shape.length; y++) {
+        for (let x = 0; x < current.shape[y].length; x++) {
+          if (current.shape[y][x]) {
+            field[current.y + y][current.x + x] = COLORS[current.type];
+          }
         }
       }
     }
 
     function clearLines() {
-      let linesCleared = 0;
-      for (let r = rows - 1; r >= 0; r--) {
-        if (grid[r].every(cell => cell.classList.contains('fixed'))) {
-          for (let i = r; i > 0; i--) {
-            for (let c = 0; c < cols; c++) {
-              grid[i][c].className = grid[i - 1][c].className;
+      for (let y = ROWS - 1; y >= 0; y--) {
+        if (field[y].every(cell => cell)) {
+          field.splice(y, 1);
+          field.unshift(Array(COLS).fill(""));
+          score += 100;
+          y++;
+        }
+      }
+    }
+
+    function checkCollision(x, y, shape) {
+      for (let row = 0; row < shape.length; row++) {
+        for (let col = 0; col < shape[row].length; col++) {
+          if (shape[row][col]) {
+            const nx = x + col;
+            const ny = y + row;
+            if (nx < 0 || nx >= COLS || ny >= ROWS || (ny >= 0 && field[ny][nx])) {
+              return true;
             }
           }
-          for (let c = 0; c < cols; c++) {
-            grid[0][c].className = 'cell';
-          }
-          linesCleared++;
-          r++;
         }
-      }
-      if (linesCleared > 0) {
-        score += linesCleared * 100;
-        document.getElementById('score').textContent = score;
-      }
-    }
-
-    function moveDown() {
-      block.y++;
-      if (isCollision()) {
-        block.y--;
-        fixBlock();
-        clearLines();
-        block = randomBlock();
-        if (isCollision()) {
-          alert("ゲームオーバー");
-          createGrid();
-          score = 0;
-          document.getElementById('score').textContent = score;
-        }
-      }
-      draw();
-    }
-
-    function moveLeft() {
-      block.x--;
-      if (isCollision()) block.x++;
-      draw();
-    }
-
-    function moveRight() {
-      block.x++;
-      if (isCollision()) block.x--;
-      draw();
-    }
-
-    function rotate() {
-      const prev = block.rotation;
-      block.rotation = (block.rotation + 1) % 4;
-      if (isCollision()) block.rotation = prev;
-      draw();
-    }
-
-    function drop() {
-      do { block.y++; } while (!isCollision());
-      block.y--;
-      draw();
-    }
-
-    function isCollision() {
-      const shape = tetrominoes[block.shape][block.rotation];
-      for (let [dx, dy] of shape) {
-        const x = block.x + dx;
-        const y = block.y + dy;
-        if (x < 0 || x >= cols || y >= rows) return true;
-        if (y >= 0 && grid[y][x].classList.contains('fixed')) return true;
       }
       return false;
     }
 
-    createGrid();
-    draw();
-    setInterval(moveDown, 600);
+    function endGame() {
+      clearInterval(timer);
+      gameOver = true;
+      current = null;
+      gameOverDiv.style.display = "block";
+    }
+
+    function resetGame() {
+      field = Array.from({length: ROWS}, () => Array(COLS).fill(""));
+      score = 0;
+      gameOver = false;
+      gameOverDiv.style.display = "none";
+      spawn();
+      draw();
+      clearInterval(timer);
+      timer = setInterval(drop, 600);
+    }
+
+    document.getElementById("restartBtn").addEventListener("click", resetGame);
+    window.addEventListener("load", resetGame);
+
+    // キーボード操作
+    window.addEventListener("keydown", (e) => {
+      if (gameOver || !current) return;
+      switch (e.key) {
+        case "ArrowLeft":
+          move(-1);
+          break;
+        case "ArrowRight":
+          move(1);
+          break;
+        case "ArrowDown":
+          drop();
+          break;
+        case "ArrowUp":
+          rotate();
+          break;
+        case " ":
+          hardDrop();
+          break;
+      }
+    });
   </script>
 </body>
 </html>
